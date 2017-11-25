@@ -56,6 +56,7 @@ object Trainer {
       ********************************************************************************/
 
    /** CHARGER LE DATASET **/
+
    val df: DataFrame = spark
      .read
      .option("header", true)  // Use first line of all files as header
@@ -66,7 +67,7 @@ object Trainer {
 
     /** TF-IDF **/
 
-      /* Tokenize text */
+    /* Tokenize text: transform text into a list of words */
 
     val   tokenizer  =   new   RegexTokenizer()
       .setPattern( "\\W+" )
@@ -75,7 +76,7 @@ object Trainer {
       .setOutputCol( "tokens" )
 
     // check data tranformation
-    val wordsData = tokenizer.transform(df)
+    //val wordsData = tokenizer.transform(df)
     //wordsData.show(5)
 
 
@@ -85,7 +86,7 @@ object Trainer {
       .setOutputCol("filtered")
 
     // check data tranformation
-    val filteredData = remover.transform(wordsData)
+    //val filteredData = remover.transform(wordsData)
     //filteredData.show(1)
 
 
@@ -94,38 +95,29 @@ object Trainer {
       .setInputCol("filtered")
       .setOutputCol("rawFeatures")
       .setMinDF(1)
-      .fit(filteredData)
 
-    // check data tranformation
-    val featurizedData = cvModel.transform(filteredData)
-    //featurizedData.show(1)
 
 
     /* TFIDF */
+
     val idf = new IDF().setInputCol("rawFeatures").setOutputCol("tfidf")
 
-    val idfModel = idf.fit(featurizedData)
-
-    // check data tranformation
-    val rescaledData = idfModel.transform(featurizedData)
-    //rescaledData.select("tfidf").show(5)
 
     /* Indexation of Country and Currency columns */
 
     val indexer1 = new StringIndexer()
       .setInputCol("country2")
       .setOutputCol("country_indexed")
-      .fit(rescaledData)
-    val indexed1 = indexer1.transform(rescaledData)
+      .setHandleInvalid("skip")
+
 
     val indexer2 = new StringIndexer()
       .setInputCol("currency2")
       .setOutputCol("currency_indexed")
-      .fit(rescaledData)
+      .setHandleInvalid("skip")
 
-    // check data tranformation
-    val indexedData = indexer2.transform(indexed1)
-    //indexedData.show(5)
+
+
 
     /** VECTOR ASSEMBLER **/
 
@@ -133,11 +125,6 @@ object Trainer {
       .setInputCols(Array("tfidf", "days_campaign", "hours_prepa", "goal", "country_indexed",   "currency_indexed"))
       .setOutputCol("features")
 
-    // check data tranformation
-    //val output = assembler.transform(indexedData)
-    //println("Assembled columns \"tfidf\", \"days_campaign\", \"hours_prepa\", \"goal\", \"country_indexed\",  " +
-    //" \"currency_indexed\" to vector column 'features'")
-   // output.select("features").show(5)
 
 
     /** LogisticRegression MODEL **/
@@ -156,7 +143,7 @@ object Trainer {
 
     /** PIPELINE with all transformation and model stages**/
     val pipeline = new Pipeline()
-      .setStages(Array(tokenizer, remover,cvModel,idfModel,indexer1,indexer2, assembler,lr))
+      .setStages(Array(tokenizer, remover,cvModel,idf,indexer1,indexer2, assembler,lr))
 
 
 
@@ -226,10 +213,10 @@ object Trainer {
     //+------------+-----------+-----+
     //|final_status|predictions|count|
     //+------------+-----------+-----+
-    //|           1|        0.0| 1279|
-    // |           0|        1.0| 2267|
-    //|           1|        1.0| 1914|
-    //|           0|        0.0| 4428|
+    //|           1|        0.0|  900|
+    //|           0|        1.0| 2657|
+    //|           1|        1.0| 2293|
+    //|           0|        0.0| 4038|
     //+------------+-----------+-----+
 
     //SAVE THE MODEL in ./data/Models directory
